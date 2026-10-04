@@ -14,6 +14,8 @@
 
 const PIN_ORGANIZADOR = 'CAMBIA-ESTE-PIN';
 const HORA_APERTURA = 9; // hora (0 a 23) en que abre la inscripción cada miércoles
+// Los campeones de cada fecha se toman del resultado publicado en el Ranking.
+const RANKING_URL = 'https://nnavarroo-sys.github.io/liga-el-garito/';
 
 const TZ = 'America/Santiago';
 const LIGA = { name: 'Liga El Garito', season: 'Temporada Clausura 2026' };
@@ -29,7 +31,7 @@ const F_COLS = [
   ['cupos', 'Cupos titulares'], ['hora', 'Hora'], ['horaNota', 'Nota horario'], ['lugar', 'Lugar'], ['nivel', 'CAT'],
   ['pago', 'Pago'], ['extra', 'Línea extra'], ['ch1', 'Campeón 1'], ['ch2', 'Campeón 2'],
   ['hold', 'Reservar cupo campeones (SI/NO)'], ['champOk', 'Campeones confirmados (ms)'], ['champCode', 'Código campeones'],
-  ['susp', 'Suspendidos (separar con /)']
+  ['susp', 'Suspendidos (separar con /)'], ['chSrc', 'Campeones: origen']
 ];
 const I_COLS = [
   ['id', 'ID'], ['n', 'Fecha'], ['a', 'Jugador 1'], ['b', 'Jugador 2'], ['when', 'Inscrito'], ['t', 'Inscrito (ms)'],
@@ -69,7 +71,7 @@ function setup() {
       cupos: 12, hora: '20:30', horaNota: 'Horario Prime', lugar: 'Club Refugio Chicureo', nivel: '4ta Firme y 3era',
       pago: 'Cancha + pelotas + 3er Tiempo · Carnes Nico Moreno', extra: '2,5 horas de juego + pelotas nuevas',
       ch1: 'Súper Jona', ch2: 'Diego Rosales', champOk: seedT - 1001, champCode: newCode(),
-      susp: 'René Tobar (Coto) / Daniel Retuert'
+      susp: 'René Tobar (Coto) / Daniel Retuert', chSrc: 'organizador'
     });
     if (c[0] === 11) row.pago = 'Se paga solo cancha + pelotas';
     addRow(fs, F_COLS, row);
@@ -99,7 +101,12 @@ function prepSheet(ss, name, cols, rows) {
 
 function doGet(e) {
   try {
-    return json(publicState(loadAll()));
+    let all = loadAll();
+    if (needsChamps(all)) {
+      const lock = LockService.getScriptLock();
+      if (lock.tryLock(5000)) { try { all = loadAll(); fillChampsFromRanking(all); } finally { lock.releaseLock(); } }
+    }
+    return json(publicState(all));
   } catch (err) {
     return json({ ok: false, msg: friendly(err) });
   }
@@ -216,6 +223,7 @@ const ACTIONS = {
     if (!/^\d{1,2}[:.]\d{2}/.test(f.hora)) fail('Escribe la hora como 20:30.');
     const ch1 = cleanName(s.ch1 || ''), ch2 = cleanName(s.ch2 || '');
     if (norm(ch1) !== norm(f.ch1) || norm(ch2) !== norm(f.ch2)) { f.champOk = null; f.champCode = ''; }
+    if (norm(ch1) !== norm(f.ch1) || norm(ch2) !== norm(f.ch2)) f.chSrc = 'organizador';
     f.ch1 = ch1; f.ch2 = ch2;
     f.hold = s.hold !== false;
     if (!f.hold) f.champOk = null;
@@ -266,7 +274,7 @@ const ACTIONS = {
     if (Array.isArray(p.susp)) c.f.susp = splitNames(p.susp.join(' / '));
     if (p.champ && p.champ.a && p.champ.b) {
       const same = c.f.ch1 && c.f.ch2 && isChampPair(p.champ.a, p.champ.b, [c.f.ch1, c.f.ch2]);
-      c.f.ch1 = cleanName(p.champ.a); c.f.ch2 = cleanName(p.champ.b); c.f.hold = true;
+      c.f.ch1 = cleanName(p.champ.a); c.f.ch2 = cleanName(p.champ.b); c.f.hold = true; c.f.chSrc = 'organizador';
       c.f.champOk = p.champ.ok ? (same && c.f.champOk ? c.f.champOk : now) : null;
       c.f.champCode = (same && c.f.champCode) || newCode();
     }
@@ -377,6 +385,7 @@ function loadAll() {
   if (!id) fail('El servidor aún no está instalado: falta ejecutar setup().');
   const ss = SpreadsheetApp.openById(id);
   const fs = ss.getSheetByName('Fechas'), is = ss.getSheetByName('Inscripciones');
+  if (str(fs.getRange(1, F_COLS.length).getValue()) === '') fs.getRange(1, 1, 1, F_COLS.length).setValues([F_COLS.map(function (c) { return c[1]; })]).setFontWeight('bold');
   const fechas = readTable(fs, F_COLS).map(normF).sort(function (a, b) { return a.n - b.n; });
   const ins = readTable(is, I_COLS).map(normI);
   return { ss: ss, fs: fs, is: is, fechas: fechas, ins: ins, res: resolveSettings(fechas) };
@@ -414,6 +423,7 @@ function normF(o) {
   o.hold = !/^(no|false|0)$/i.test(str(o.hold));
   o.champOk = num(o.champOk); o.champCode = str(o.champCode);
   o.susp = splitNames(str(o.susp));
+  o.chSrc = str(o.chSrc);
   return o;
 }
 function normI(o) {
@@ -467,8 +477,55 @@ function publicState(all) {
   return {
     ok: true, now: nowMs(), league: LIGA, defaults: DEFAULTS,
     calendar: all.fechas.map(function (f) { return { n: f.n, date: f.date, cat: f.calCat }; }),
-    lists: lists, apertura: HORA_APERTURA, adminReady: PIN_ORGANIZADOR !== 'CAMBIA-ESTE-PIN'
+    lists: lists, apertura: HORA_APERTURA, ranking: RANKING_URL, adminReady: PIN_ORGANIZADOR !== 'CAMBIA-ESTE-PIN'
   };
+}
+
+/* ---------------- campeones desde el Ranking ---------------- */
+
+/** Ganadores de cada fecha cerrada en el Ranking publicado: { '9': ['Super Jona', 'Diego Rosales'], … }. Se guarda 10 minutos. */
+function rankingWinners() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('ranking-winners');
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* se vuelve a leer */ } }
+  const out = {};
+  try {
+    const res = UrlFetchApp.fetch(RANKING_URL + '?v=' + Date.now(), { muteHttpExceptions: true, followRedirects: true });
+    const m = res.getResponseCode() === 200 ? /<script type="application\/json" id="liga-data">([\s\S]*?)<\/script>/.exec(res.getContentText()) : null;
+    if (m) {
+      const d = JSON.parse(m[1]), names = {};
+      (d.players || []).forEach(function (p) { names[p.id] = p.name; });
+      (d.fechas || []).forEach(function (f) {
+        if (f.status !== 'cerrada') return;
+        const w = (f.results || []).filter(function (r) { return r.pl === 1; }).map(function (r) { return names[r.p]; }).filter(Boolean);
+        if (w.length === 2) out[f.n] = w;
+      });
+    }
+  } catch (e) { /* sin Ranking: los campeones se ingresan a mano */ }
+  cache.put('ranking-winners', JSON.stringify(out), 600);
+  return out;
+}
+function needsChamps(all) {
+  return all.fechas.some(function (f) { return f.hold && !f.ch1 && !f.ch2 && !f.chSrc; });
+}
+/** Completa los campeones de las fechas que aún no los tienen, con la pareja ganadora de la fecha anterior en el Ranking. */
+function fillChampsFromRanking(all) {
+  const todo = all.fechas.filter(function (f) { return f.hold && !f.ch1 && !f.ch2 && !f.chSrc; });
+  if (!todo.length) return;
+  const w = rankingWinners();
+  todo.forEach(function (f) {
+    const pair = w[f.n - 1];
+    if (!pair) return;
+    f.ch1 = cleanName(pair[0]); f.ch2 = cleanName(pair[1]); f.chSrc = 'ranking'; f.champOk = null; f.champCode = newCode();
+    saveF(all, f);
+    log(all.ss, 'campeones desde el ranking', f.n, f.ch1 + ' / ' + f.ch2);
+  });
+}
+/** Para probar desde el editor: muestra en el registro los ganadores que lee del Ranking. */
+function probarRanking() {
+  CacheService.getScriptCache().remove('ranking-winners');
+  const w = rankingWinners();
+  Object.keys(w).forEach(function (n) { Logger.log('Fecha ' + n + ': ' + w[n].join(' / ')); });
+  if (!Object.keys(w).length) Logger.log('No se pudo leer el Ranking en ' + RANKING_URL);
 }
 
 function log(ss, action, n, detail) {
