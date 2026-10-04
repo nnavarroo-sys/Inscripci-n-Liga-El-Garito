@@ -218,11 +218,6 @@ textarea{resize:vertical;line-height:1.45}
 .state h2{font:700 24px/1.1 var(--f-display)}
 .state p{color:var(--muted);max-width:40rem}
 .state code{font:13px ui-monospace,Menlo,Consolas,monospace;background:var(--surface-2);padding:2px 5px;border-radius:4px}
-.embed .band{display:none}
-.embed .fnav{position:static}
-.embed .toast{display:none}
-.embed .main{padding-block:14px 28px}
-.rk-link{display:inline-block;margin-top:10px;color:var(--ball);font:600 14px/1.2 var(--f-body);text-decoration:underline;text-underline-offset:3px}
 .adm{display:inline-block;white-space:nowrap;font:700 11px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;background:var(--ball);color:var(--ball-ink);border-radius:999px;padding:5px 9px;vertical-align:middle}
 </style>
 </head>
@@ -242,15 +237,6 @@ var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'ag
 var MES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 var PLAYERS = ["Aaron Encina", "Ale K", "Ale M", "Alex Flores", "Alex Marambio", "Alexis Gonzalez", "Alfredo Viola", "Alonso", "Alvaro Pérez", "Amaro Taucan", "Arturo Fuenzalida", "Benja Cabrera", "Berti", "Boris Morales", "Byron", "Byron Maipu", "Camilo Fontova", "Carlos Amaro", "Carlos Barrera", "Carlos Villar", "Cesar Jorquera", "Claudio Arce", "Coke Castro", "Cristobal", "Daniel Belmar", "Daniel Bolados", "Daniel Retuert", "Danilo", "David Neira", "Diego Díaz", "Diego Garces", "Diego LP", "Diego Rebolledo", "Diego Rosales", "Esteban Ayala", "Felipe", "Felipe de Amaro", "Felipe O", "Fonck", "German F", "Gonza", "Gonzalo Avila", "Gonzalo Benavente", "Gonzalo Torres", "Guille", "Guillermo Tudezca (Memo)", "Gustavo Isea", "Hector", "Ivan Neira", "Jaca", "Jaime Gómez", "Joan Guzman", "Joaquin Alegria", "Jona Cooper", "Jorge Alvarado", "Jorge Casas", "Jorge Castro", "Jose E", "Jose Manuel Valencia", "Jota", "Juan Javia", "Juan Pablo", "Lautaro Rodriguez", "Lucas Troya", "Luis Reyes", "Maldonado", "Marcelo", "Mario", "Martin Carroz", "Martin El Bueno", "Martinoski", "Mati C", "Matias E", "Mauricio Encina", "Mauricio Perez", "Mauro Bouquet", "Miguel Partner de Seba", "Mirko Posavac", "Nacho Rojo", "Nelson Navarro", "Nene", "Nico Campo", "Nico D", "Nico Fernandez", "Nico Guerra", "Nico Makuc", "Nico Moreno", "Nico Vega", "Nico Vilches", "Pablo Aguayo", "Pablo Muñoz", "Patricio Catalan", "Patricio Lobos", "Rene Tobar (Coto)", "Rodolfo Guajardo", "Rodrigo Nuñez", "Rodrigo Rosas", "Rodrigo SC", "Roy", "Sandrino", "Seba B", "Seba Delmar", "Seba Ogas", "Seba Quezada", "Seba Yañez", "Seba Z", "Super Jona", "Sziklai", "Tomas Polloni", "Tomy Latorre", "Vicente Ramirez", "Vincenzo", "Yayo"];
 var K_MINE = 'garito-mine-v1', K_PIN = 'garito-pin-v1', K_NAME = 'garito-name-v1';
-var RANKING = String(window.GARITO_RANKING || 'https://nnavarroo-sys.github.io/liga-el-garito/');
-/* Inside the Ranking's Inscripción tab: no header, and height/toasts go to the Ranking page. */
-var EMBED = /[?&]embed=1(&|$)/.test(location.search) && window.parent !== window;
-var PARENT = '*';
-try { if (document.referrer) PARENT = new URL(document.referrer).origin; } catch (e) {}
-if (EMBED) document.documentElement.classList.add('embed');
-function toParent(msg) { if (!EMBED) return; try { msg.type = 'garito-ins'; window.parent.postMessage(msg, PARENT); } catch (e) {} }
-var lastH = 0;
-function postHeight() { if (!EMBED) return; var a = document.getElementById('app'); if (!a) return; var h = Math.ceil(a.getBoundingClientRect().height); if (h && h !== lastH) { lastH = h; toParent({ h: h }); } }
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
@@ -481,7 +467,6 @@ function call(p, onOk, onFail) {
     });
 }
 function toast(msg) {
-  if (EMBED) { toParent({ toast: msg }); return; }
   ui.toast = msg; render();
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { ui.toast = ''; render(); }, 4200);
@@ -625,7 +610,7 @@ function act(a, el) {
   var server = ['signup', 'signup-force', 'champ-ok', 'partner-save', 'partner-force', 'drop', 'claim', 'login', 'add', 'add-force', 'achamp', 'cfg-save', 'import', 'ed-save', 'del'];
   if (busy && server.indexOf(a) >= 0) return;
   switch (a) {
-    case 'sel': toParent({ top: true }); ui.sel = +el.getAttribute('data-n'); ui.edit = null; ui.ed = null; ui.confirm = null; ui.panel = ''; ui.cfg = null; ui.wa = false; ui.msg = null; break;
+    case 'sel': ui.sel = +el.getAttribute('data-n'); ui.edit = null; ui.ed = null; ui.confirm = null; ui.panel = ''; ui.cfg = null; ui.wa = false; ui.msg = null; break;
     case 'retry': loading = true; loadErr = ''; render(); refresh(); return;
     case 'partner-fill': ui.b = 'Partner'; setVal('su-b', 'Partner'); break;
     case 'xpartner-fill': ui.xb = 'Partner'; setVal('add-b', 'Partner'); break;
@@ -699,7 +684,7 @@ function dis() { return busy ? ' disabled' : ''; }
 function band(B) {
   var status = B ? '<p class="status">Fecha <b>' + B.f.n + '</b> · ' + esc(catOf(B.f, B.L)) + ' · ' + esc(cap(longDate(B.f.date))) + ' · <b>' + esc(statusLabel(B.status)) + '</b></p>' : '';
   return '<header class="band"><div class="wrap band-in"><div class="logo" role="img" aria-label="Escudo de El Garito"></div><div class="band-txt">' +
-    '<p class="eyebrow">Liga El Garito · Temporada Clausura 2026</p><h1>Inscripción' + (isAdm ? ' <span class="adm">Organizador</span>' : '') + '</h1>' + status + '<a class="rk-link" href="' + esc(RANKING) + '">Ver ranking</a></div></div></header>';
+    '<p class="eyebrow">Liga El Garito · Temporada Clausura 2026</p><h1>Inscripción' + (isAdm ? ' <span class="adm">Organizador</span>' : '') + '</h1>' + status + '</div></div></header>';
 }
 function strip(n, t) {
   var h = '<nav class="fnav" aria-label="Fechas de la temporada"><div class="wrap"><div class="fstrip">';
@@ -987,7 +972,6 @@ function render() {
   if (!app.firstChild) app.appendChild(tpl.content);
   else morphChildren(app, tpl.content);
   if (ui.focus) { var fe = document.getElementById(ui.focus); ui.focus = null; if (fe) fe.focus(); }
-  postHeight();
   if (stripScroll && work) {
     var chip = app.querySelector('.fchip.sel'), st = app.querySelector('.fstrip');
     if (chip && st) { stripScroll = false; st.scrollLeft = chip.offsetLeft - st.offsetLeft - st.clientWidth / 2 + chip.clientWidth / 2; }
@@ -1012,7 +996,6 @@ app.addEventListener('keydown', function (e) {
 
 render();
 refresh();
-if (EMBED && window.ResizeObserver) { try { new ResizeObserver(postHeight).observe(document.getElementById('app')); } catch (e) {} }
 setInterval(function () { if (!document.hidden && !busy) refresh(true); }, 30000);
 document.addEventListener('visibilitychange', function () { if (!document.hidden && !busy) refresh(true); });
 if (isAdm && CONFIGURED) {
