@@ -54,7 +54,7 @@ GitHub Pages es gratis solo si el repositorio es público. El código queda visi
 
 ## 3. Usarla cada semana
 
-- **Jugadores:** entran al enlace y se anotan con su nombre y el de su pareja, o con Partner. La lista de cada fecha abre el miércoles a las 09:00 y cierra a la hora de juego. Para cambiar esa hora, edita `HORA_APERTURA` en Apps Script y publica una nueva versión.
+- **Jugadores:** entran al enlace y se anotan con su nombre y el de su pareja, o con Partner. Cada teléfono puede tener una sola inscripción por fecha: para anotar otra pareja, primero hay que bajarse de la lista. El organizador no tiene ese límite. La lista de cada fecha abre el miércoles a las 09:00 y cierra a la hora de juego. Para cambiar esa hora, edita `HORA_APERTURA` en Apps Script y publica una nueva versión.
 - **Campeones:** el cupo 1 aparece reservado con 🏆. Uno de los campeones toca **Confirmar** en esa fila y quedan registrados.
 - **Organizador:** al final de la página toca *Soy el organizador* y escribe tu PIN. Ese teléfono queda en modo organizador hasta que toques *Salir*. Desde ahí puedes:
   - Agregar, editar o quitar parejas.

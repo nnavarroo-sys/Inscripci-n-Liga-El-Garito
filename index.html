@@ -236,7 +236,15 @@ var DIAS3 = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 var MES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 var PLAYERS = ["Aaron Encina", "Ale K", "Ale M", "Alex Flores", "Alex Marambio", "Alexis Gonzalez", "Alfredo Viola", "Alonso", "Alvaro Pérez", "Amaro Taucan", "Arturo Fuenzalida", "Benja Cabrera", "Berti", "Boris Morales", "Byron", "Byron Maipu", "Camilo Fontova", "Carlos Amaro", "Carlos Barrera", "Carlos Villar", "Cesar Jorquera", "Claudio Arce", "Coke Castro", "Cristobal", "Daniel Belmar", "Daniel Bolados", "Daniel Retuert", "Danilo", "David Neira", "Diego Díaz", "Diego Garces", "Diego LP", "Diego Rebolledo", "Diego Rosales", "Esteban Ayala", "Felipe", "Felipe de Amaro", "Felipe O", "Fonck", "German F", "Gonza", "Gonzalo Avila", "Gonzalo Benavente", "Gonzalo Torres", "Guille", "Guillermo Tudezca (Memo)", "Gustavo Isea", "Hector", "Ivan Neira", "Jaca", "Jaime Gómez", "Joan Guzman", "Joaquin Alegria", "Jona Cooper", "Jorge Alvarado", "Jorge Casas", "Jorge Castro", "Jose E", "Jose Manuel Valencia", "Jota", "Juan Javia", "Juan Pablo", "Lautaro Rodriguez", "Lucas Troya", "Luis Reyes", "Maldonado", "Marcelo", "Mario", "Martin Carroz", "Martin El Bueno", "Martinoski", "Mati C", "Matias E", "Mauricio Encina", "Mauricio Perez", "Mauro Bouquet", "Miguel Partner de Seba", "Mirko Posavac", "Nacho Rojo", "Nelson Navarro", "Nene", "Nico Campo", "Nico D", "Nico Fernandez", "Nico Guerra", "Nico Makuc", "Nico Moreno", "Nico Vega", "Nico Vilches", "Pablo Aguayo", "Pablo Muñoz", "Patricio Catalan", "Patricio Lobos", "Rene Tobar (Coto)", "Rodolfo Guajardo", "Rodrigo Nuñez", "Rodrigo Rosas", "Rodrigo SC", "Roy", "Sandrino", "Seba B", "Seba Delmar", "Seba Ogas", "Seba Quezada", "Seba Yañez", "Seba Z", "Super Jona", "Sziklai", "Tomas Polloni", "Tomy Latorre", "Vicente Ramirez", "Vincenzo", "Yayo"];
-var K_MINE = 'garito-mine-v1', K_PIN = 'garito-pin-v1', K_NAME = 'garito-name-v1';
+var K_MINE = 'garito-mine-v1', K_PIN = 'garito-pin-v1', K_NAME = 'garito-name-v1', K_DEV = 'garito-dev-v1';
+/* Identifies this phone so it can hold only one sign-up per fecha. */
+var DEV = lsGet(K_DEV);
+if (!DEV || !/^[A-Za-z0-9-]{16,64}$/.test(DEV)) { DEV = newDev(); lsSet(K_DEV, DEV); }
+function newDev() {
+  var a = new Uint8Array(16);
+  try { crypto.getRandomValues(a); } catch (e) { for (var i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256); }
+  return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+}
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
@@ -410,6 +418,7 @@ function saveMine() { lsSet(K_MINE, JSON.stringify(mine)); }
 function addMine(n, id, code) { if (!id || !code) return; (mine[n] = mine[n] || {})[id] = String(code); saveMine(); }
 function dropMine(n, id) { if (mine[n]) { delete mine[n][id]; saveMine(); } }
 function codeOf(n, id) { return mine[n] && mine[n][id]; }
+function hasMine(n) { return !!(mine[n] && Object.keys(mine[n]).length); }
 function cleanMine() {
   Object.keys(mine).forEach(function (n) {
     var L = work.lists[n];
@@ -478,7 +487,7 @@ function logoutAdmin() { pin = ''; isAdm = false; lsSet(K_PIN, null); ui.edit = 
 function doSignup(force) {
   var a = ui.a.trim(), b = ui.b.trim(), n = sel();
   if (!a) { ui.msg = { kind: 'err', text: 'Escribe tu nombre.' }; render(); return; }
-  call({ action: 'signup', n: n, a: a, b: b || 'Partner', force: !!force }, function (r) {
+  call({ action: 'signup', n: n, a: a, b: b || 'Partner', force: !!force, dev: DEV }, function (r) {
     addMine(n, r.id, r.code);
     lsSet(K_NAME, a);
     ui.b = ''; ui.msg = null; setVal('su-b', '');
@@ -494,7 +503,7 @@ function champConfirm() {
   var n = sel();
   ui.confirm = null;
   if (isAdm) { adminChamp('confirm'); return; }
-  call({ action: 'champConfirm', n: n }, function (r) {
+  call({ action: 'champConfirm', n: n, dev: DEV }, function (r) {
     addMine(n, 'champ', r.code);
     toast('Campeones confirmados: el cupo 1 quedó registrado.');
   });
@@ -792,7 +801,8 @@ function mineCard(B) {
   }).join('');
   if (!items) return '';
   return '<section class="card pad mine" aria-labelledby="mh"><h3 class="gh" id="mh">Tu inscripción</h3>' + items +
-    '<p class="small muted">El código queda guardado en este teléfono. Anótalo si vas a usar otro.</p></section>';
+    '<p class="small muted">El código queda guardado en este teléfono. Anótalo si vas a usar otro.' +
+    (!isAdm && B.status === 'abierta' ? ' Cada teléfono puede tener una sola inscripción por fecha: para anotar otra pareja, primero bájate de la lista.' : '') + '</p></section>';
 }
 function tagsFor(r, B) {
   var t = [];
@@ -815,7 +825,7 @@ function champRow(r, B) {
   if (isAdm) right = r.ok
     ? '<button class="btn sm ghost" data-act="edit" data-id="champ" aria-expanded="' + (ui.edit === 'champ') + '">' + (ui.edit === 'champ' ? 'Cerrar' : 'Editar') + '</button>'
     : '<button class="btn ball sm" data-act="champ-ok"' + dis() + '>Confirmar</button>';
-  else if (!r.ok && open) right = '<button class="btn ball sm" data-act="champ-ask"' + dis() + '>Confirmar</button>';
+  else if (!r.ok && open && !hasMine(B.f.n)) right = '<button class="btn ball sm" data-act="champ-ask"' + dis() + '>Confirmar</button>';
   else right = '<span class="meta">' + (r.ok && ok && ok.t > B.T.open ? esc(whenShort(ok.t)) : '') + '</span>';
   var h = '<div class="it tit champ" role="listitem" data-k="champ"><span class="pos">' + r.pos + '</span><div class="pair">' + pairH(L.champs[0], L.champs[1]) +
     '<span class="tro" role="img" aria-label="Campeones">🏆</span>' + tagsFor(r, B) + '</div>' + right;
@@ -915,6 +925,7 @@ function rules(B) {
     '<li>La pareja campeona de la fecha anterior aparece primera, con cupo asegurado, siempre que vuelva a jugar junta. Queda registrada cuando confirma con un clic en su fila.</li>' +
     '<li>Si te anotas con la palabra <b>Partner</b>, tienes hasta el viernes a las 12:00 para completar el nombre de tu pareja. Si no, pasas al final de la lista.</li>' +
     '<li>Los jugadores suspendidos en una fecha no pueden inscribirse en ella, con ninguna pareja.</li>' +
+    '<li>Cada teléfono puede tener una sola inscripción por fecha. Para anotar otra pareja, primero tienes que bajarte de la lista.</li>' +
     '<li>Al inscribirte recibes un código de 6 números que queda guardado en tu teléfono. Con él completas tu Partner o te bajas de la lista.</li></ul></section>';
 }
 function foot() {
@@ -938,7 +949,7 @@ function view() {
     var t = now(), n = sel(), B = build(n, t);
     h = band(B) + strip(n, t) + '<main class="wrap main">' + fechaCard(B) + notices(B) + mineCard(B);
     if (isAdm) h += addCard(B);
-    else if (B.status === 'abierta') h += signupCard(B);
+    else if (B.status === 'abierta' && !hasMine(n)) h += signupCard(B);
     h += listView(B) + waCard(B) + rules(B) + foot() + '</main>';
     h += '<datalist id="jug">' + PLAYERS.map(function (p) { return '<option value="' + esc(p) + '"></option>'; }).join('') + '</datalist>';
   }

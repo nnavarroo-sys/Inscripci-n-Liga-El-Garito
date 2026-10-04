@@ -29,12 +29,12 @@ const F_COLS = [
   ['cupos', 'Cupos titulares'], ['hora', 'Hora'], ['horaNota', 'Nota horario'], ['lugar', 'Lugar'], ['nivel', 'CAT'],
   ['pago', 'Pago'], ['extra', 'Línea extra'], ['ch1', 'Campeón 1'], ['ch2', 'Campeón 2'],
   ['hold', 'Reservar cupo campeones (SI/NO)'], ['champOk', 'Campeones confirmados (ms)'], ['champCode', 'Código campeones'],
-  ['susp', 'Suspendidos (separar con /)']
+  ['susp', 'Suspendidos (separar con /)'], ['champDev', 'Teléfono campeones']
 ];
 const I_COLS = [
   ['id', 'ID'], ['n', 'Fecha'], ['a', 'Jugador 1'], ['b', 'Jugador 2'], ['when', 'Inscrito'], ['t', 'Inscrito (ms)'],
   ['s', 'Orden'], ['p0', 'Se anotó con Partner'], ['pt', 'Partner confirmado (ms)'], ['ok', 'Partner a tiempo (organizador)'],
-  ['estado', 'Estado'], ['origen', 'Origen'], ['code', 'Código']
+  ['estado', 'Estado'], ['origen', 'Origen'], ['code', 'Código'], ['dev', 'Teléfono']
 ];
 
 const CALENDARIO = [
@@ -142,16 +142,20 @@ const ACTIONS = {
   signup: function (p, all) {
     const c = ctx(all, p.n);
     windowOpen(c);
-    return addPair(all, c, p.a, p.b, !!p.force, 'web', null);
+    const dev = needDev(p);
+    oneEntry(c, dev);
+    return addPair(all, c, p.a, p.b, !!p.force, 'web', null, dev);
   },
 
   /* Un clic: los campeones confirman su cupo 1. */
   champConfirm: function (p, all) {
-    const c = ctx(all, p.n);
-    if (!isAdmin(p.pin)) windowOpen(c);
+    const c = ctx(all, p.n), admin = isAdmin(p.pin);
+    let dev = '';
+    if (!admin) windowOpen(c);
     if (!c.f.hold || !c.f.ch1 || !c.f.ch2) fail('Esta fecha no tiene cupo reservado para campeones.');
     if (c.f.champOk) fail('Los campeones ya están confirmados.');
-    c.f.champOk = nowMs();
+    if (!admin) { dev = needDev(p); oneEntry(c, dev); }
+    c.f.champOk = nowMs(); c.f.champDev = dev;
     c.f.champCode = c.f.champCode || newCode();
     saveF(all, c.f);
     log(all.ss, 'campeones confirmados', c.n, c.f.ch1 + ' / ' + c.f.ch2 + (isAdmin(p.pin) ? ' (organizador)' : ''));
@@ -179,7 +183,7 @@ const ACTIONS = {
     const c = ctx(all, p.n);
     if (p.id === 'champ') {
       auth(p, c.f.champCode);
-      c.f.hold = false; c.f.champOk = null;
+      c.f.hold = false; c.f.champOk = null; c.f.champDev = '';
       saveF(all, c.f);
       log(all.ss, 'campeones se bajan', c.n, c.f.ch1 + ' / ' + c.f.ch2);
       return {};
@@ -296,8 +300,8 @@ const ACTIONS = {
     needAdmin(p);
     const c = ctx(all, p.n), f = c.f;
     if (p.op === 'confirm') { f.hold = true; f.champOk = f.champOk || nowMs(); f.champCode = f.champCode || newCode(); }
-    else if (p.op === 'undo') f.champOk = null;
-    else if (p.op === 'free') { f.hold = false; f.champOk = null; }
+    else if (p.op === 'undo') { f.champOk = null; f.champDev = ''; }
+    else if (p.op === 'free') { f.hold = false; f.champOk = null; f.champDev = ''; }
     else if (p.op === 'hold') f.hold = true;
     else fail('Acción desconocida.');
     saveF(all, f);
@@ -306,7 +310,7 @@ const ACTIONS = {
   }
 };
 
-function addPair(all, c, rawA, rawB, force, origen, t0) {
+function addPair(all, c, rawA, rawB, force, origen, t0, dev) {
   let a = cleanInput(rawA), b = cleanInput(rawB);
   if (isPartner(a) && !isPartner(b)) { a = b; b = 'Partner'; }
   if (isPartner(a)) fail('Escribe tu nombre.');
@@ -314,7 +318,7 @@ function addPair(all, c, rawA, rawB, force, origen, t0) {
   const f = c.f;
   if (f.hold && f.ch1 && f.ch2 && isChampPair(a, b, [f.ch1, f.ch2])) {
     if (f.champOk) fail('Los campeones ya están confirmados en el cupo 1.');
-    f.champOk = nowMs(); f.champCode = f.champCode || newCode();
+    f.champOk = nowMs(); f.champCode = f.champCode || newCode(); f.champDev = dev || '';
     saveF(all, f);
     log(all.ss, 'campeones confirmados', c.n, a + ' / ' + b + ' (' + origen + ')');
     return { id: 'champ', code: origen === 'web' ? f.champCode : null, champ: true };
@@ -322,7 +326,7 @@ function addPair(all, c, rawA, rawB, force, origen, t0) {
   checkNames(c, a, b, force, null);
   const t = t0 || nowMs(), code = newCode();
   const e = { id: newId(), n: c.n, a: a, b: b, when: fmtWhen(t), t: t, s: maxS(all, c.n) + 1, p0: isPartner(b) ? 'SI' : 'NO',
-    pt: '', ok: '', estado: 'activa', origen: origen, code: code };
+    pt: '', ok: '', estado: 'activa', origen: origen, code: code, dev: dev || '' };
   addRow(all.is, I_COLS, e);
   log(all.ss, 'inscripción (' + origen + ')', c.n, a + ' / ' + b);
   return { id: e.id, code: origen === 'web' ? code : null };
@@ -342,6 +346,17 @@ function checkNames(c, a, b, force, skipId) {
     const dup = taken.filter(function (y) { return !isPartner(y) && norm(y) === norm(x); })[0];
     if (dup) fail(dup + ' ya está inscrito en la Fecha ' + c.n + '.');
   });
+}
+
+/* Una inscripción por teléfono y fecha: para anotar otra pareja, primero hay que bajarse. */
+function needDev(p) {
+  const d = String(p.dev || '').trim();
+  if (!/^[A-Za-z0-9-]{16,64}$/.test(d)) fail('Actualiza la página para inscribirte.');
+  return d;
+}
+function oneEntry(c, dev) {
+  const has = c.entries.some(function (e) { return e.dev === dev; }) || (c.f.hold && c.f.champOk && c.f.champDev === dev);
+  if (has) fail('Desde este teléfono ya hay una inscripción en la Fecha ' + c.n + '. Para inscribir otra pareja, primero bájate de la lista.', { kind: 'one' });
 }
 
 function windowOpen(c) {
@@ -377,11 +392,16 @@ function loadAll() {
   if (!id) fail('El servidor aún no está instalado: falta ejecutar setup().');
   const ss = SpreadsheetApp.openById(id);
   const fs = ss.getSheetByName('Fechas'), is = ss.getSheetByName('Inscripciones');
+  ensureHeaders(fs, F_COLS); ensureHeaders(is, I_COLS);
   const fechas = readTable(fs, F_COLS).map(normF).sort(function (a, b) { return a.n - b.n; });
   const ins = readTable(is, I_COLS).map(normI);
   return { ss: ss, fs: fs, is: is, fechas: fechas, ins: ins, res: resolveSettings(fechas) };
 }
 
+/* Agrega los títulos de columnas nuevas a una planilla creada con una versión anterior. */
+function ensureHeaders(sh, cols) {
+  if (str(sh.getRange(1, cols.length).getValue()) === '') sh.getRange(1, 1, 1, cols.length).setValues([cols.map(function (c) { return c[1]; })]).setFontWeight('bold');
+}
 function readTable(sh, cols) {
   const v = sh.getDataRange().getValues(), out = [];
   for (let i = 1; i < v.length; i++) {
@@ -414,12 +434,13 @@ function normF(o) {
   o.hold = !/^(no|false|0)$/i.test(str(o.hold));
   o.champOk = num(o.champOk); o.champCode = str(o.champCode);
   o.susp = splitNames(str(o.susp));
+  o.champDev = str(o.champDev);
   return o;
 }
 function normI(o) {
   o.id = str(o.id); o.n = Number(o.n); o.a = str(o.a); o.b = str(o.b); o.t = num(o.t) || 0; o.s = num(o.s) || 0;
   o.p0 = /^(si|sí|true)$/i.test(str(o.p0)) ? 'SI' : 'NO'; o.pt = num(o.pt) || ''; o.ok = /^(si|sí|true)$/i.test(str(o.ok)) ? 'SI' : '';
-  o.estado = str(o.estado) || 'activa'; o.origen = str(o.origen); o.code = str(o.code); o.when = str(o.when);
+  o.estado = str(o.estado) || 'activa'; o.origen = str(o.origen); o.code = str(o.code); o.when = str(o.when); o.dev = str(o.dev);
   return o;
 }
 function resolveSettings(fechas) {
