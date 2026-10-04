@@ -1,3 +1,2 @@
-// Pega entre las comillas la URL de tu aplicación web de Google Apps Script.
-// La encuentras en Apps Script > Implementar > Gestionar implementaciones. Termina en /exec.
-window.GARITO_API = 'PEGA_AQUI_LA_URL_DE_APPS_SCRIPT';
+// URL de la aplicación web de Google Apps Script (Implementar > Gestionar implementaciones). Termina en /exec.
+window.GARITO_API = 'https://script.google.com/macros/s/AKfycbw70KTop37h2qgeGTTvL_Fy-ho-gCNxD9RaJIXeBVSXNB91NCjFhy7qtN-bgRJc6c8/exec';
