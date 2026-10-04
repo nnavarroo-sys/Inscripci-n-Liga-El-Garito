@@ -314,7 +314,8 @@ function hasChampsL(L) { return !!(L.champs && String(L.champs[0] || '').trim() 
 function calBy(n) { for (var i = 0; i < work.calendar.length; i++) if (work.calendar[i].n === n) return work.calendar[i]; return null; }
 function getList(n) { return work.lists[n] || { cat: '', cupos: 12, hora: '20:30', champs: ['', ''], hold: true, champOk: null, susp: [], entries: [] }; }
 function catOf(f, L) { return L.cat || f.cat; }
-function times(f, L) { var h = hm(L.hora); return { open: dayAt(f.date, -6, 0, 0), deadline: dayAt(f.date, -4, 12, 0), game: dayAt(f.date, 0, h[0], h[1]), end: dayAt(f.date, 1, 0, 0) }; }
+function openHour() { var h = work && work.apertura != null ? Number(work.apertura) : 9; return h >= 0 && h <= 23 ? Math.floor(h) : 9; }
+function times(f, L) { var h = hm(L.hora); return { open: dayAt(f.date, -6, openHour(), 0), deadline: dayAt(f.date, -4, 12, 0), game: dayAt(f.date, 0, h[0], h[1]), end: dayAt(f.date, 1, 0, 0) }; }
 function currentN(t) {
   var c = work.calendar;
   for (var i = 0; i < c.length; i++) if (t < times(c[i], getList(c[i].n)).end) return c[i].n;
@@ -703,7 +704,7 @@ function fechaCard(B) {
     cells += '<span class="cell ' + c + '"></span>';
   }
   var filled = tit.filter(function (r) { return !(r.champ && !r.ok); }).length;
-  var steps = [[T.open, 'Abre la lista', cap(whenShort(T.open, false))], [T.deadline, 'Plazo para completar Partner', cap(whenShort(T.deadline))], [T.game, 'Se juega', cap(whenShort(T.game))]];
+  var steps = [[T.open, 'Abre la lista', cap(whenShort(T.open))], [T.deadline, 'Plazo para completar Partner', cap(whenShort(T.deadline))], [T.game, 'Se juega', cap(whenShort(T.game))]];
   var nextIdx = -1; for (var j = 0; j < steps.length; j++) if (t < steps[j][0]) { nextIdx = j; break; }
   var stepsH = steps.map(function (s, k) {
     var cls = (t >= s[0] ? 'done' : '') + (k === nextIdx ? ' next' : '');
@@ -909,7 +910,7 @@ function waCard(B) {
 }
 function rules(B) {
   return '<section class="rules" aria-labelledby="rh"><h3 class="sec" id="rh">Cómo funciona la lista</h3><ul>' +
-    '<li>La inscripción abre cada miércoles a las 00:00 para la fecha del martes siguiente, según el calendario de la temporada, y cierra a la hora de juego.</li>' +
+    '<li>La inscripción abre cada miércoles a las ' + pad2(openHour()) + ':00 para la fecha del martes siguiente, según el calendario de la temporada, y cierra a la hora de juego.</li>' +
     '<li>Juegan las primeras ' + B.cupos + ' parejas en orden de inscripción, según la hora del servidor. Las demás quedan de reserva y suben si alguien se baja.</li>' +
     '<li>La pareja campeona de la fecha anterior aparece primera, con cupo asegurado, siempre que vuelva a jugar junta. Queda registrada cuando confirma con un clic en su fila.</li>' +
     '<li>Si te anotas con la palabra <b>Partner</b>, tienes hasta el viernes a las 12:00 para completar el nombre de tu pareja. Si no, pasas al final de la lista.</li>' +

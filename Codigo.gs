@@ -13,6 +13,7 @@
  */
 
 const PIN_ORGANIZADOR = 'CAMBIA-ESTE-PIN';
+const HORA_APERTURA = 9; // hora (0 a 23) en que abre la inscripción cada miércoles
 
 const TZ = 'America/Santiago';
 const LIGA = { name: 'Liga El Garito', season: 'Temporada Clausura 2026' };
@@ -466,7 +467,7 @@ function publicState(all) {
   return {
     ok: true, now: nowMs(), league: LIGA, defaults: DEFAULTS,
     calendar: all.fechas.map(function (f) { return { n: f.n, date: f.date, cat: f.calCat }; }),
-    lists: lists, adminReady: PIN_ORGANIZADOR !== 'CAMBIA-ESTE-PIN'
+    lists: lists, apertura: HORA_APERTURA, adminReady: PIN_ORGANIZADOR !== 'CAMBIA-ESTE-PIN'
   };
 }
 
@@ -493,7 +494,7 @@ function dayAt(date, k, h, mi) {
   return zoned(u.getUTCFullYear(), u.getUTCMonth() + 1, u.getUTCDate(), h, mi);
 }
 function hm(s) { const m = /^(\d{1,2})[:.](\d{2})/.exec(String(s || '').trim()); return m ? [Math.min(23, +m[1]), Math.min(59, +m[2])] : [20, 30]; }
-function times(f, L) { const h = hm(L.hora); return { open: dayAt(f.date, -6, 0, 0), deadline: dayAt(f.date, -4, 12, 0), game: dayAt(f.date, 0, h[0], h[1]) }; }
+function times(f, L) { const h = hm(L.hora); return { open: dayAt(f.date, -6, HORA_APERTURA, 0), deadline: dayAt(f.date, -4, 12, 0), game: dayAt(f.date, 0, h[0], h[1]) }; }
 function whenLong(ms) {
   const w = wall(ms), wd = new Date(Date.UTC(w.y, w.m - 1, w.d)).getUTCDay();
   const D = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
